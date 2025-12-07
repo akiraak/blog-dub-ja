@@ -1,6 +1,12 @@
 # blog-dub-ja
 ブログやニュースなどを日本語音声に変換する
 
+## 準備
+
+```sh
+echo "OPENAI_API_KEY=sk-..." > .env
+```
+
 ## 実行コマンド
 
 ```bash
