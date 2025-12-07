@@ -1,0 +1,26 @@
+{
+  "name": "blog-dub-ja",
+  "version": "1.0.0",
+  "description": "ブログやニュースなどを日本語音声に変換する",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/akiraak/blog-dub-ja.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/akiraak/blog-dub-ja/issues"
+  },
+  "homepage": "https://github.com/akiraak/blog-dub-ja#readme",
+  "dependencies": {
+    "extract-chatgpt": "github:akiraak/extract-chatgpt",
+    "extract-readability": "github:akiraak/extract-readability",
+    "text-to-speech": "github:akiraak/text-to-speech",
+    "translate-to-ja": "github:akiraak/translate-to-ja"
+  }
+}
