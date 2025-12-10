@@ -3,6 +3,11 @@
   "version": "1.0.0",
   "description": "ブログやニュースなどを日本語音声に変換する",
   "main": "index.js",
+
+  "bin": {
+    "blog-dub-ja": "./blog_dub_ja.js"
+  },
+
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
