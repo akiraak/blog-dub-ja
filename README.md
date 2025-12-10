@@ -11,5 +11,7 @@ echo "OPENAI_API_KEY=sk-..." > .env
 
 ```bash
 node blog_dub_ja.js [URL] [NAME]
-✅ All Done! Audio saved to: outputs/[NAME].mp3
+✅ All Done!
+   Text:  outputs/[NAME]/[NAME]_[TIMESTAMP].txt
+   Audio: outputs/[NAME]/[NAME]_[TIMESTAMP].mp3
 ```
