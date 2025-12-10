@@ -21,6 +21,7 @@
     "extract-chatgpt": "github:akiraak/extract-chatgpt",
     "extract-readability": "github:akiraak/extract-readability",
     "text-to-speech": "github:akiraak/text-to-speech",
-    "translate-to-ja": "github:akiraak/translate-to-ja"
+    "translate-to-ja": "github:akiraak/translate-to-ja",
+    "tts-google": "github:akiraak/tts-google"
   }
 }

@@ -6,11 +6,17 @@ const fs = require('fs');
 // ==========================================
 // 設定
 // ==========================================
+// TTS切り替えフラグ (true: Google TTS, false: OpenAI text-to-speech)
+const USE_GOOGLE_TTS = true; 
+
 const CONFIG = {
   EXTRACT_CMD: 'extract-readability',
   TRANSLATE_CMD: 'translate-to-ja',
-  TTS_CMD: 'text-to-speech',
-  TTS_MODEL: 'gpt-4o-mini-tts',
+  
+  // フラグに応じてコマンドとモデルを自動設定
+  TTS_CMD: USE_GOOGLE_TTS ? 'tts-google' : 'text-to-speech',
+  TTS_MODEL: USE_GOOGLE_TTS ? 'ja-JP-Chirp3-HD-Despina' : 'gpt-4o-mini-tts',
+  
   OUTPUT_DIR: 'outputs'
 };
 
@@ -76,9 +82,6 @@ class DirectoryManager {
       fs.mkdirSync(this.baseOutputDir);
     }
 
-    // ★ 変更点: 既存ディレクトリの削除処理 (fs.rmSync) を削除しました
-
-    // ディレクトリが存在してもエラーにならないよう { recursive: true } を付与
     fs.mkdirSync(this.projectDir, { recursive: true });
     
     // タイムスタンプを固定
@@ -159,7 +162,15 @@ class BlogDubber {
 
   async generateAudio(text, outputPath, debugPath) {
     if (!text) return;
-    const args = [CONFIG.TTS_CMD, '-o', outputPath, '--model', CONFIG.TTS_MODEL];
+
+    // 基本引数
+    const args = [CONFIG.TTS_CMD, '-o', outputPath];
+
+    // モデル指定がある場合のみ追加 (CONFIGで制御)
+    if (CONFIG.TTS_MODEL) {
+      args.push('--model', CONFIG.TTS_MODEL);
+    }
+
     if (debugPath) args.push('--debug-dir', debugPath);
     return this.runner.run('npx', args, text, false);
   }
