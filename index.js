@@ -1,26 +1,10 @@
 #!/usr/bin/env node
 
 require('dotenv').config();
+const { program } = require('commander');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
-
-// ==========================================
-// 設定
-// ==========================================
-// TTS切り替えフラグ (true: Google TTS, false: OpenAI text-to-speech)
-const USE_GOOGLE_TTS = true; 
-
-const CONFIG = {
-  EXTRACT_CMD: 'extract-readability',
-  TRANSLATE_CMD: 'translate-to-ja',
-  
-  // フラグに応じてコマンドとモデルを自動設定
-  TTS_CMD: USE_GOOGLE_TTS ? 'tts-google' : 'text-to-speech',
-  TTS_MODEL: USE_GOOGLE_TTS ? 'ja-JP-Chirp3-HD-Despina' : 'gpt-4o-mini-tts',
-  
-  OUTPUT_DIR: 'outputs'
-};
 
 // ==========================================
 // 1. コマンド実行管理クラス
@@ -30,6 +14,7 @@ class CommandRunner {
     return new Promise((resolve, reject) => {
       const cmdStr = `${command} ${args.join(' ')}`;
       const inputLen = inputBody ? inputBody.length : 0;
+      // 標準出力ではなく標準エラー出力に進捗を出す（パイプ渡し対策）
       console.error(`[Exec] Running: ${cmdStr} (Input: ${inputLen} chars)...`);
 
       const child = spawn(command, args, {
@@ -81,12 +66,14 @@ class DirectoryManager {
     this.projectDir = path.join(this.baseOutputDir, cleanName);
 
     if (!fs.existsSync(this.baseOutputDir)) {
-      fs.mkdirSync(this.baseOutputDir);
+      fs.mkdirSync(this.baseOutputDir, { recursive: true });
     }
 
-    fs.mkdirSync(this.projectDir, { recursive: true });
+    if (!fs.existsSync(this.projectDir)) {
+      fs.mkdirSync(this.projectDir, { recursive: true });
+    }
     
-    // タイムスタンプを固定
+    // タイムスタンプ生成
     const now = new Date();
     const pad = (n) => n.toString().padStart(2, '0');
     this.timestamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
@@ -123,16 +110,17 @@ class DirectoryManager {
 }
 
 // ==========================================
-// 3. メインロジック (Facade)
+// 3. メインロジック
 // ==========================================
 class BlogDubber {
-  constructor() {
+  constructor(config) {
+    this.config = config;
     this.runner = new CommandRunner();
-    this.dirManager = new DirectoryManager(CONFIG.OUTPUT_DIR);
+    this.dirManager = new DirectoryManager(config.OUTPUT_DIR);
   }
 
   async extract(url, debugPath) {
-    const args = [CONFIG.EXTRACT_CMD, url];
+    const args = [this.config.EXTRACT_CMD, url];
     if (debugPath) args.push('--debug-dir', debugPath);
 
     const rawOutput = await this.runner.run('npx', args, null, true);
@@ -150,13 +138,10 @@ class BlogDubber {
 
   async translate(text, debugPath) {
     if (!text) return "";
-    const args = [CONFIG.TRANSLATE_CMD];
+    const args = [this.config.TRANSLATE_CMD];
     if (debugPath) args.push('--debug-dir', debugPath);
     
-    // コマンド実行
     let output = await this.runner.run('npx', args, text, true);
-
-    // [dotenv@...] から始まる行を削除する
     output = output.replace(/^\[dotenv@.+/gm, '').trim();
 
     return output;
@@ -165,33 +150,19 @@ class BlogDubber {
   async generateAudio(text, outputPath, debugPath) {
     if (!text) return;
 
-    // 基本引数
-    const args = [CONFIG.TTS_CMD, '-o', outputPath];
-
-    // モデル指定がある場合のみ追加 (CONFIGで制御)
-    if (CONFIG.TTS_MODEL) {
-      args.push('--model', CONFIG.TTS_MODEL);
+    const args = [this.config.TTS_CMD, '-o', outputPath];
+    
+    if (this.config.TTS_MODEL) {
+      args.push('--model', this.config.TTS_MODEL);
     }
 
     if (debugPath) args.push('--debug-dir', debugPath);
     return this.runner.run('npx', args, text, false);
   }
 
-  async execute() {
-    const args = process.argv.slice(2);
-    const debugIndex = args.findIndex(arg => arg === '--debug' || arg === '-d');
-    const isDebug = debugIndex !== -1;
-    if (isDebug) args.splice(debugIndex, 1);
-
-    const targetUrl = args[0];
-    const customName = args[1];
-
-    if (!targetUrl) {
-      console.error('Usage: node blog_dub_ja.js <URL> [OUTPUT_NAME] [--debug]');
-      process.exit(1);
-    }
-
-    let projectName = customName;
+  async execute(targetUrl, outputName, isDebug) {
+    // プロジェクト名決定ロジック
+    let projectName = outputName;
     if (!projectName) {
       try {
         const urlObj = new URL(targetUrl);
@@ -240,6 +211,9 @@ class BlogDubber {
       if (isDebug) {
         console.error(`   Debug Info saved in: ${this.dirManager.debugRoot}`);
       }
+      
+      // 出力ファイルのパスを標準出力に出す（親プロセスが読み取れるように）
+      console.log(audioPath);
 
     } catch (error) {
       console.error('❌ Error:', error.message);
@@ -248,6 +222,43 @@ class BlogDubber {
   }
 }
 
-if (require.main === module) {
-  new BlogDubber().execute();
-}
+// ==========================================
+// CLI 設定 (Commander)
+// ==========================================
+program
+  .name('blog-dub-ja')
+  .description('ブログ記事から日本語吹き替え音声を生成するツール')
+  .argument('<url>', '翻訳・音声化したいブログ記事のURL')
+  .option('-o, --output <name>', 'プロジェクト名（出力フォルダ名に使用）')
+  .option('-d, --debug-dir <path>', 'デバッグログの出力先ディレクトリ（指定がない場合は自動生成）')
+  // TTSエンジン切り替えオプション
+  .option('--tts <type>', '使用するTTSエンジン (google | openai)', 'google')
+  .action(async (url, options) => {
+    
+    // オプションに応じた設定の構築
+    const useGoogle = options.tts === 'google';
+    
+    const config = {
+      EXTRACT_CMD: 'extract-readability',
+      TRANSLATE_CMD: 'translate-to-ja',
+      
+      // フラグに応じてコマンドとモデルを自動設定
+      TTS_CMD: useGoogle ? 'tts-google' : 'text-to-speech',
+      TTS_MODEL: useGoogle ? 'ja-JP-Chirp3-HD-Despina' : 'gpt-4o-mini-tts',
+      
+      OUTPUT_DIR: path.join(__dirname, 'outputs')
+    };
+
+    // デバッグフラグの処理 (--debug-dir があればデバッグモードとみなす)
+    const isDebug = !!options.debugDir;
+    
+    // クラスのインスタンス化と実行
+    const dubber = new BlogDubber(config);
+    
+    // DirectoryManagerのロジックが独自に debugフォルダを作る仕組みになっているため、
+    // 引数の debug-dir を使うように少しロジック調整が必要かもしれませんが、
+    // 一旦既存ロジック(自動生成)を生かす形で isDebug フラグのみ渡します。
+    await dubber.execute(url, options.output, isDebug);
+  });
+
+program.parse(process.argv);

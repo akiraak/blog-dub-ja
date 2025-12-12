@@ -3,11 +3,9 @@
   "version": "1.0.0",
   "description": "ブログやニュースなどを日本語音声に変換する",
   "main": "index.js",
-
   "bin": {
-    "blog-dub-ja": "./blog_dub_ja.js"
+    "blog-dub-ja": "./index.js"
   },
-
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -23,6 +21,7 @@
   },
   "homepage": "https://github.com/akiraak/blog-dub-ja#readme",
   "dependencies": {
+    "commander": "^14.0.2",
     "extract-chatgpt": "github:akiraak/extract-chatgpt",
     "extract-readability": "github:akiraak/extract-readability",
     "text-to-speech": "github:akiraak/text-to-speech",
