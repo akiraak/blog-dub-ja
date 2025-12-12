@@ -66,10 +66,18 @@ class DirectoryManager {
     return this.projectDir;
   }
 
-  setupDebugDirectories(isDebug) {
-    if (!isDebug) return;
-    this.debugRoot = path.join(this.projectDir, `debug_${this.timestamp}`);
-    fs.mkdirSync(this.debugRoot, { recursive: true });
+  setupDebugDirectories(debugPath) {
+    if (!debugPath) return;
+
+    // パス文字列が渡されたらそれを使い、trueだけなら自動生成する
+    if (typeof debugPath === 'string') {
+      this.debugRoot = debugPath;
+    } else {
+      this.debugRoot = path.join(this.projectDir, `debug_${this.timestamp}`);
+    }
+
+    if (!fs.existsSync(this.debugRoot)) fs.mkdirSync(this.debugRoot, { recursive: true });
+
     this.dirs = {
       extract: path.join(this.debugRoot, 'extract-readability'),
       translateTitle: path.join(this.debugRoot, 'translate-to-ja-title'),
@@ -77,7 +85,7 @@ class DirectoryManager {
       tts: path.join(this.debugRoot, 'text-to-speech')
     };
   }
-
+  
   getDebugPath(key) { return this.dirs[key] || null; }
   
   generateOutputFilename(projectName, extension) {
@@ -128,7 +136,6 @@ class BlogDubber {
     if (debugPath) args.push('--debug-dir', debugPath);
     return this.runner.run('npx', args, text, false);
   }
-  // ... (ここまで省略) ...
 
   async execute(targetUrl, outputName, isDebug) {
     let projectName = outputName;
@@ -143,7 +150,7 @@ class BlogDubber {
     try {
       // プロジェクト初期化（デバッグフォルダ等のために実行はしておく）
       this.dirManager.initializeProject(projectName);
-      this.dirManager.setupDebugDirectories(isDebug);
+      this.dirManager.setupDebugDirectories(debugPath);
 
       console.error('\n[Phase 1] Extracting Article...');
       const article = await this.extract(targetUrl, this.dirManager.getDebugPath('extract'));
@@ -212,9 +219,9 @@ program
       TXT_OUTPUT: options.txtOutput
     };
 
-    const isDebug = !!options.debugDir;
+    const debugPath = options.debugDir; // パス文字列のまま受け取る
     const dubber = new BlogDubber(config);
-    await dubber.execute(url, options.output, isDebug);
+    await dubber.execute(url, options.output, debugPath);
   });
 
 program.parse(process.argv);
