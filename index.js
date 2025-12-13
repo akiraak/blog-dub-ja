@@ -181,8 +181,8 @@ program
     const config = {
       EXTRACT_CMD: 'extract-readability',
       TRANSLATE_CMD: 'translate-to-ja',
-      TTS_CMD: useGoogle ? 'tts-google' : 'text-to-speech',
-      TTS_MODEL: useGoogle ? 'ja-JP-Chirp3-HD-Despina' : 'gpt-4o-mini-tts',
+      TTS_CMD: useGoogle ? 'tts-google-25pro' : 'text-to-speech',
+      TTS_MODEL: useGoogle ? undefined : 'gpt-4o-mini-tts',
       MP3_OUTPUT: options.mp3Output,
       TXT_OUTPUT: options.txtOutput
     };
