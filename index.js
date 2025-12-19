@@ -45,16 +45,13 @@ class DirectoryManager {
     this.dirs = {}; 
   }
 
-  // デバッグディレクトリのセットアップのみを行うように簡素化
   setupDebugDirectories(debugPath) {
     if (!debugPath) return;
 
-    // 指定されたパスを作成
     if (!fs.existsSync(debugPath)) {
       fs.mkdirSync(debugPath, { recursive: true });
     }
 
-    // 各工程用のサブフォルダパスを定義
     this.dirs = {
       extract: path.join(debugPath, 'extract-readability'),
       translateTitle: path.join(debugPath, 'translate-to-ja-title'),
@@ -107,9 +104,19 @@ class BlogDubber {
     return this.runner.run('npx', args, text, false);
   }
 
+  // ファイル保存ヘルパー
+  saveText(filePath, content, label) {
+    if (!filePath || !content) return null;
+    const absPath = path.resolve(filePath);
+    const dir = path.dirname(absPath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(absPath, content);
+    console.error(`[Save] ${label} saved: ${absPath}`);
+    return absPath;
+  }
+
   async execute(targetUrl, debugPath) {
     try {
-      // デバッグフォルダの準備（指定がある場合のみ）
       this.dirManager.setupDebugDirectories(debugPath);
 
       console.error('\n[Phase 1] Extracting Article...');
@@ -122,37 +129,31 @@ class BlogDubber {
       console.error('\n[Phase 3] Translating Content...');
       const contentJa = await this.translate(article.content, this.dirManager.getDebugPath('translateContent'));
 
-      // テキスト保存（必須パスへ保存）
-      const textPath = path.resolve(this.config.TXT_OUTPUT);
-      const textData = `Title: ${titleJa}\n\n${contentJa}`;
-      
-      // 保存先のディレクトリが存在しない場合は作成
-      const textDir = path.dirname(textPath);
-      if (!fs.existsSync(textDir)) fs.mkdirSync(textDir, { recursive: true });
-      
-      fs.writeFileSync(textPath, textData);
-      console.error(`\n[Save] Text saved: ${textPath}`);
+      // タイトル保存 (-t 指定時)
+      const savedTitlePath = this.saveText(this.config.TITLE_TXT_PATH, titleJa, 'Title Text');
+
+      // 本文保存 (-c 指定時)
+      const savedContentPath = this.saveText(this.config.CONTENT_TXT_PATH, contentJa, 'Content Text');
 
       console.error('\n[Phase 4] Generating Audio...');
 
-      // 音声保存（必須パスへ保存）
+      // 音声保存
       const audioPath = path.resolve(this.config.MP3_OUTPUT);
-      
-      // 保存先のディレクトリが存在しない場合は作成
       const audioDir = path.dirname(audioPath);
       if (!fs.existsSync(audioDir)) fs.mkdirSync(audioDir, { recursive: true });
 
-      await this.generateAudio(contentJa, audioPath, this.dirManager.getDebugPath('tts'));
+      // 音声には「タイトル + 本文」を含める
+      const audioContent = `${titleJa}\n\n${contentJa}`;
+      await this.generateAudio(audioContent, audioPath, this.dirManager.getDebugPath('tts'));
 
       console.error(`\n✅ All Done!`);
       
-      // 人間が確認しやすいように標準エラー出力にリスト表示
-      console.error(`- MP3 : ${audioPath}`);
-      console.error(`- TXT : ${textPath}`);
+      console.error(`- MP3   : ${audioPath}`);
+      if (savedTitlePath)   console.error(`- Title : ${savedTitlePath}`);
+      if (savedContentPath) console.error(`- Cont. : ${savedContentPath}`);
       
       if (debugPath) {
-        // -d が指定されていた場合、デバッグディレクトリのフルパスを表示
-        console.error(`- DBG : ${path.resolve(debugPath)}`);
+        console.error(`- DBG   : ${path.resolve(debugPath)}`);
       }
 
     } catch (error) {
@@ -169,12 +170,12 @@ program
   .name('blog-dub-ja')
   .description('ブログ記事から日本語吹き替え音声を生成するツール')
   .argument('<url>', 'ブログ記事のURL')
-  // ★変更: 必須オプション化＆ショートハンド追加
   .requiredOption('-m, --mp3-output <path>', 'MP3ファイルの出力パス (必須)')
-  .requiredOption('-t, --txt-output <path>', 'テキストファイルの出力パス (必須)')
+  // ★修正: ショートハンドを小文字の1文字に変更
+  .option('-t, --title-txt <path>', 'タイトルのテキスト出力パス (任意)')
+  .option('-c, --content-txt <path>', '本文のテキスト出力パス (任意)')
   .option('-d, --debug-dir <path>', 'デバッグログの出力先ディレクトリ')
   .option('--tts <type>', 'TTSエンジン (google | openai)', 'google')
-  // 削除: --output, --base-dir
   .action(async (url, options) => {
     
     const useGoogle = options.tts === 'google';
@@ -184,7 +185,8 @@ program
       TTS_CMD: useGoogle ? 'tts-google-25pro' : 'text-to-speech',
       TTS_MODEL: useGoogle ? undefined : 'gpt-4o-mini-tts',
       MP3_OUTPUT: options.mp3Output,
-      TXT_OUTPUT: options.txtOutput
+      TITLE_TXT_PATH: options.titleTxt,
+      CONTENT_TXT_PATH: options.contentTxt
     };
 
     const debugPath = options.debugDir;
